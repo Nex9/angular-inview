@@ -168,7 +168,7 @@ checkInView = (items, container, event) ->
 	if container and container isnt window
 		bounds = getBoundingClientRect container
 		# Shortcut to all item not in view if container isn't itself.
-		if bounds.top > viewport.bottom or bounds.bottom < viewport.top
+		if bounds.top >= viewport.bottom or bounds.bottom < viewport.top
 			triggerInViewCallback(event, item, false) for item in items
 			return
 		# Actual viewport restriction.
