@@ -224,7 +224,7 @@
     };
     if (container && container !== window) {
       bounds = getBoundingClientRect(container);
-      if (bounds.top > viewport.bottom || bounds.bottom < viewport.top) {
+      if (bounds.top >= viewport.bottom || bounds.bottom < viewport.top) {
         for (j = 0, len = items.length; j < len; j++) {
           item = items[j];
           triggerInViewCallback(event, item, false);
