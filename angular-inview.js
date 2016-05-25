@@ -10,11 +10,12 @@
         restrict: 'A',
         require: '?^inViewContainer',
         link: function(scope, element, attrs, containerController) {
-          var inViewFunc, item, options, performCheck, ref, ref1;
+          var inViewFunc, inViewInterceptor, item, options, opts, performCheck, ref, ref1;
           if (!attrs.inView) {
             return;
           }
           inViewFunc = $parse(attrs.inView);
+          options = scope.$eval(attrs.inViewOptions);
           item = {
             element: element,
             wasInView: false,
@@ -36,7 +37,43 @@
               })(this));
             }
           };
-          if ((attrs.inViewOptions != null) && (options = scope.$eval(attrs.inViewOptions))) {
+          if (window.IntersectionObserver) {
+            opts = {};
+            if (options != null ? options.offset : void 0) {
+              opts.rootMargin = options.offset + "px";
+            }
+            if (containerController != null ? containerController.element : void 0) {
+              opts.root = containerController != null ? containerController.element[0] : void 0;
+            }
+            inViewInterceptor = new IntersectionObserver(((function(_this) {
+              return function(entries) {
+                var elem, inviewpart, j, len, results;
+                results = [];
+                for (j = 0, len = entries.length; j < len; j++) {
+                  elem = entries[j];
+                  if (elem.intersectionRatio > 0) {
+                    if (elem.intersectionRatio === 1) {
+                      inviewpart = 'both';
+                    } else if (elem.boundingClientRect.top > 0) {
+                      inviewpart = 'top';
+                    } else {
+                      inviewpart = 'bottom';
+                    }
+                    results.push(item.callback(null, true, inviewpart));
+                  } else {
+                    results.push(item.callback(null, false, null));
+                  }
+                }
+                return results;
+              };
+            })(this)), opts);
+            inViewInterceptor.observe(element[0]);
+            scope.$on('$destroy', function() {
+              return inViewInterceptor.disconnect();
+            });
+            return;
+          }
+          if ((attrs.inViewOptions != null) && options) {
             item.offset = options.offset || [options.offsetTop || 0, options.offsetBottom || 0];
             if (options.debounce) {
               item.customDebouncedCheck = debounce((function(event) {
@@ -108,6 +145,7 @@
               }).call(_this), $element[0], event);
             };
           })(this);
+          this.element = $element;
           return this;
         }
       ],

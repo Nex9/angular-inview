@@ -13,86 +13,118 @@
 # `angular.module('myApp', ['angular-inview'])`
 angularInviewModule = angular.module('angular-inview', [])
 
-	# ##in-view directive
-	#
-	# **Usage**
-	# ```html
-	# <any in-view="{expression}" [in-view-options="{object}"]></any>
-	# ```
-	.directive 'inView', ['$parse', ($parse) ->
-		# Evaluate the expression passet to the attribute `in-view` when the DOM
-		# element is visible in the viewport.
-		restrict: 'A'
-		# If the `in-view` element is contained in a scrollable view other than the
-		# window, that containing element should be [marked as a container](#in-view-container-directive).
-		require: '?^inViewContainer'
-		link: (scope, element, attrs, containerController) ->
-			return unless attrs.inView
-			inViewFunc = $parse(attrs.inView)
-			item =
-				element: element
-				wasInView: no
-				offset: 0
-				customDebouncedCheck: null
-				# In the callback expression, the following variables will be provided:
-				# - `$event`: the DOM event that triggered the inView callback.
-				# The inView DOM element will be passed in `$event.inViewTarget`.
-				# - `$inview`: boolean indicating if the element is in view
-				# - `$inviewpart`: string either 'top', 'bottom' or 'both'
-				callback: ($event={}, $inview, $inviewpart) -> scope.$evalAsync =>
-					$event.inViewTarget = element[0]
-					inViewFunc scope,
-						'$event': $event
-						'$inview': $inview
-						'$inviewpart': $inviewpart
-			# An additional `in-view-options` attribute can be specified to set offsets
-			# that will displace the inView calculation and a debounce to slow down updates
-			# via scrolling events.
-			if attrs.inViewOptions? and options = scope.$eval(attrs.inViewOptions)
-				item.offset = options.offset || [options.offsetTop or 0, options.offsetBottom or 0]
-				if options.debounce
-					item.customDebouncedCheck = debounce ((event) -> checkInView [item], element[0], event), options.debounce
-			# A series of checks are set up to verify the status of the element visibility.
-			performCheck = item.customDebouncedCheck ? containerController?.checkInView ? windowCheckInView
-			if containerController?
-				containerController.addItem item
-			else
-				addWindowInViewItem item
-			# This checks will be performed immediatly and when a relevant measure changes.
-			setTimeout performCheck
-			# When the element is removed, all the logic behind in-view is removed.
-			# One might want to use `in-view` in conjunction with `ng-if` when using
-			# the directive for lazy loading.
-			scope.$on '$destroy', ->
-				containerController?.removeItem item
-				removeWindowInViewItem item
-	]
+  # ##in-view directive
+  #
+  # **Usage**
+  # ```html
+  # <any in-view="{expression}" [in-view-options="{object}"]></any>
+  # ```
+  .directive 'inView', ['$parse', ($parse) ->
+    # Evaluate the expression passet to the attribute `in-view` when the DOM
+    # element is visible in the viewport.
+    restrict: 'A'
+    # If the `in-view` element is contained in a scrollable view other than the
+    # window, that containing element should be [marked as a container](#in-view-container-directive).
+    require: '?^inViewContainer'
+    link: (scope, element, attrs, containerController) ->
+      return unless attrs.inView
+      inViewFunc = $parse(attrs.inView)
+      options = scope.$eval(attrs.inViewOptions)
+      item =
+        element: element
+        wasInView: no
+        offset: 0
+        customDebouncedCheck: null
+        # In the callback expression, the following variables will be provided:
+        # - `$event`: the DOM event that triggered the inView callback.
+        # The inView DOM element will be passed in `$event.inViewTarget`.
+        # - `$inview`: boolean indicating if the element is in view
+        # - `$inviewpart`: string either 'top', 'bottom' or 'both'
+        callback: ($event={}, $inview, $inviewpart) -> scope.$evalAsync =>
+          $event.inViewTarget = element[0]
+          inViewFunc scope,
+            '$event': $event
+            '$inview': $inview
+            '$inviewpart': $inviewpart
+
+      if window.IntersectionObserver
+        opts = {}
+        if options?.offset
+          opts.rootMargin = "#{options.offset}px"
+        if containerController?.element
+          opts.root = containerController?.element[0]
+
+        inViewInterceptor = new IntersectionObserver(((entries) =>
+          for elem in entries
+            if elem.intersectionRatio > 0
+              if elem.intersectionRatio is 1
+                inviewpart = 'both'
+              else if elem.boundingClientRect.top > 0
+                inviewpart = 'top'
+              else
+                inviewpart = 'bottom'
+
+              item.callback(null, true, inviewpart)
+            else
+              item.callback(null, false, null)
+        ), opts)
+
+        inViewInterceptor.observe element[0]
+
+        scope.$on '$destroy', ->
+          inViewInterceptor.disconnect()
+        return
+
+      # An additional `in-view-options` attribute can be specified to set offsets
+      # that will displace the inView calculation and a debounce to slow down updates
+      # via scrolling events.
+
+      if attrs.inViewOptions? and options
+        item.offset = options.offset || [options.offsetTop or 0, options.offsetBottom or 0]
+        if options.debounce
+          item.customDebouncedCheck = debounce ((event) -> checkInView [item], element[0], event), options.debounce
+      # A series of checks are set up to verify the status of the element visibility.
+      performCheck = item.customDebouncedCheck ? containerController?.checkInView ? windowCheckInView
+      if containerController?
+        containerController.addItem item
+      else
+        addWindowInViewItem item
+      # This checks will be performed immediatly and when a relevant measure changes.
+      setTimeout performCheck
+      # When the element is removed, all the logic behind in-view is removed.
+      # One might want to use `in-view` in conjunction with `ng-if` when using
+      # the directive for lazy loading.
+      scope.$on '$destroy', ->
+        containerController?.removeItem item
+        removeWindowInViewItem item
+  ]
 
 	# ## in-view-container directive
 	.directive 'inViewContainer', ->
-		# Use this as an attribute or a class to mark a scrollable container holding
-		# `in-view` directives as children.
-		restrict: 'AC'
-		# This directive will track child `in-view` elements.
-		controller: ['$element', ($element) ->
-			@items = []
-			@addItem = (item) ->
-				@items.push item
-			@removeItem = (item) ->
-				@items = (i for i in @items when i isnt item)
-			@checkInView = (event) =>
-				i.customDebouncedCheck() for i in @items when i.customDebouncedCheck?
-				checkInView (i for i in @items when not i.customDebouncedCheck?), $element[0], event
-			@
-		]
-		# Custom checks on child `in-view` elements will be triggered when the
-		# `in-view-container` scrolls.
-		link: (scope, element, attrs, controller) ->
-			element.bind 'scroll', controller.checkInView
-			trackInViewContainer controller
-			scope.$on '$destroy', ->
-				element.unbind 'scroll', controller.checkInView
-				untrackInViewContainer controller
+      # Use this as an attribute or a class to mark a scrollable container holding
+      # `in-view` directives as children.
+      restrict: 'AC'
+      # This directive will track child `in-view` elements.
+      controller: ['$element', ($element) ->
+        @items = []
+        @addItem = (item) ->
+          @items.push item
+        @removeItem = (item) ->
+          @items = (i for i in @items when i isnt item)
+        @checkInView = (event) =>
+          i.customDebouncedCheck() for i in @items when i.customDebouncedCheck?
+          checkInView (i for i in @items when not i.customDebouncedCheck?), $element[0], event
+        @element = $element
+        @
+      ]
+      # Custom checks on child `in-view` elements will be triggered when the
+      # `in-view-container` scrolls.
+      link: (scope, element, attrs, controller) ->
+        element.bind 'scroll', controller.checkInView
+        trackInViewContainer controller
+        scope.$on '$destroy', ->
+          element.unbind 'scroll', controller.checkInView
+          untrackInViewContainer controller
 
 # ## Utilities
 
