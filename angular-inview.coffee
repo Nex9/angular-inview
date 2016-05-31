@@ -71,8 +71,8 @@ angularInviewModule = angular.module('angular-inview', [])
         removeWindowInViewItem item
   ]
 
-	# ## in-view-container directive
-	.directive 'inViewContainer', ->
+  # ## in-view-container directive
+  .directive 'inViewContainer', ->
       # Use this as an attribute or a class to mark a scrollable container holding
       # `in-view` directives as children.
       restrict: 'AC'
@@ -105,143 +105,143 @@ angularInviewModule = angular.module('angular-inview', [])
 # The collectin of all in-view items. Items are object with the structure:
 # ```
 # {
-# 	element: <angular.element>,
-# 	offset: <number>,
-# 	wasInView: <bool>,
-# 	callback: <funciton>
+#   element: <angular.element>,
+#   offset: <number>,
+#   wasInView: <bool>,
+#   callback: <funciton>
 # }
 # ```
 _windowInViewItems = []
 addWindowInViewItem = (item) ->
-	_windowInViewItems.push item
-	do bindWindowEvents
+  _windowInViewItems.push item
+  do bindWindowEvents
 removeWindowInViewItem = (item) ->
-	_windowInViewItems = (i for i in _windowInViewItems when i isnt item)
-	do unbindWindowEvents
+  _windowInViewItems = (i for i in _windowInViewItems when i isnt item)
+  do unbindWindowEvents
 
 # List of containers controllers
 _containersControllers = []
 trackInViewContainer = (controller) ->
-	_containersControllers.push controller
-	do bindWindowEvents
+  _containersControllers.push controller
+  do bindWindowEvents
 untrackInViewContainer = (container) ->
-	_containersControllers = (c for c in _containersControllers when c isnt container)
-	do unbindWindowEvents
+  _containersControllers = (c for c in _containersControllers when c isnt container)
+  do unbindWindowEvents
 
 # ### Events handler management
 _windowEventsHandlerBinded = no
 windowEventsHandler = (event) ->
-	c.checkInView(event) for c in _containersControllers
-	windowCheckInView(event) if _windowInViewItems.length
+  c.checkInView(event) for c in _containersControllers
+  windowCheckInView(event) if _windowInViewItems.length
 bindWindowEvents = ->
-	# The bind to window events will be added only if actually needed.
-	return if _windowEventsHandlerBinded
-	_windowEventsHandlerBinded = yes
-	angular.element(window).bind 'checkInView click ready wheel mousewheel DomMouseScroll MozMousePixelScroll resize scroll touchmove mouseup', windowEventsHandler
+  # The bind to window events will be added only if actually needed.
+  return if _windowEventsHandlerBinded
+  _windowEventsHandlerBinded = yes
+  angular.element(window).bind 'checkInView click ready wheel mousewheel DomMouseScroll MozMousePixelScroll resize scroll touchmove mouseup', windowEventsHandler
 unbindWindowEvents = ->
-	# All the window bindings will be removed if no directive requires to be checked.
-	return unless _windowEventsHandlerBinded
-	return if _windowInViewItems.length or _containersControllers.length
-	_windowEventsHandlerBinded = no
-	angular.element(window).unbind 'checkInView click ready wheel mousewheel DomMouseScroll MozMousePixelScroll resize scroll touchmove mouseup', windowEventsHandler
+  # All the window bindings will be removed if no directive requires to be checked.
+  return unless _windowEventsHandlerBinded
+  return if _windowInViewItems.length or _containersControllers.length
+  _windowEventsHandlerBinded = no
+  angular.element(window).unbind 'checkInView click ready wheel mousewheel DomMouseScroll MozMousePixelScroll resize scroll touchmove mouseup', windowEventsHandler
 
 # ### InView checks
 # This method will call the user defined callback with the proper parameters if neccessary.
 triggerInViewCallback = (event, item, inview, isTopVisible, isBottomVisible) ->
-	if inview
-		elOffsetTop = getBoundingClientRect(item.element[0]).top + window.pageYOffset
-		inviewpart = (isTopVisible and isBottomVisible and 'neither') or (isTopVisible and 'top') or (isBottomVisible and 'bottom') or 'both'
-		# The callback will be called only if a relevant value has changed.
-		# However, if the element changed it's position (for example if it has been
-		# pushed down by dynamically loaded content), the callback will be called anyway.
-		unless item.wasInView and item.wasInView == inviewpart and elOffsetTop == item.lastOffsetTop
-			item.lastOffsetTop = elOffsetTop
-			item.wasInView = inviewpart
-			item.callback event, yes, inviewpart
-	else if item.wasInView
-		item.wasInView = no
-		item.callback event, no
+  if inview
+    elOffsetTop = getBoundingClientRect(item.element[0]).top + window.pageYOffset
+    inviewpart = (isTopVisible and isBottomVisible and 'neither') or (isTopVisible and 'top') or (isBottomVisible and 'bottom') or 'both'
+    # The callback will be called only if a relevant value has changed.
+    # However, if the element changed it's position (for example if it has been
+    # pushed down by dynamically loaded content), the callback will be called anyway.
+    unless item.wasInView and item.wasInView == inviewpart and elOffsetTop == item.lastOffsetTop
+      item.lastOffsetTop = elOffsetTop
+      item.wasInView = inviewpart
+      item.callback event, yes, inviewpart
+  else if item.wasInView
+    item.wasInView = no
+    item.callback event, no
 
 # The main function to check if the given items are in view relative to the provided container.
 checkInView = (items, container, event) ->
-	# It first calculate the viewport.
-	viewport =
-		top: 0
-		bottom: getViewportHeight()
-	# Restrict viewport if a container is specified.
-	if container and container isnt window
-		bounds = getBoundingClientRect container
-		# Shortcut to all item not in view if container isn't itself.
-		if bounds.top >= viewport.bottom or bounds.bottom < viewport.top
-			triggerInViewCallback(event, item, false) for item in items
-			return
-		# Actual viewport restriction.
-		viewport.top = bounds.top if bounds.top > viewport.top
-		viewport.bottom = bounds.bottom if bounds.bottom < viewport.bottom
-	# Calculate inview status for each item.
-	for item in items
-		# Get the bounding top and bottom of the element in the viewport.
-		element = item.element[0]
-		bounds = getBoundingClientRect element
-		# Apply offset.
-		boundsTop = bounds.top + if offsetIsPercentage(item.offset) then getOffsetFromPercentage(bounds, item.offset) else parseInt(item.offset?[0] ? item.offset)
-		boundsBottom = bounds.bottom + if offsetIsPercentage(item.offset) then getOffsetFromPercentage(bounds, item.offset) else parseInt(item.offset?[1] ? item.offset)
-		# Calculate parts in view.
-		if boundsTop < viewport.bottom and boundsBottom >= viewport.top
-			triggerInViewCallback(event, item, true, boundsBottom > viewport.bottom, boundsTop < viewport.top)
-		else
-			triggerInViewCallback(event, item, false)
+  # It first calculate the viewport.
+  viewport =
+    top: 0
+    bottom: getViewportHeight()
+  # Restrict viewport if a container is specified.
+  if container and container isnt window
+    bounds = getBoundingClientRect container
+    # Shortcut to all item not in view if container isn't itself.
+    if bounds.top >= viewport.bottom or bounds.bottom < viewport.top
+      triggerInViewCallback(event, item, false) for item in items
+      return
+    # Actual viewport restriction.
+    viewport.top = bounds.top if bounds.top > viewport.top
+    viewport.bottom = bounds.bottom if bounds.bottom < viewport.bottom
+  # Calculate inview status for each item.
+  for item in items
+    # Get the bounding top and bottom of the element in the viewport.
+    element = item.element[0]
+    bounds = getBoundingClientRect element
+    # Apply offset.
+    boundsTop = bounds.top + if offsetIsPercentage(item.offset) then getOffsetFromPercentage(bounds, item.offset) else parseInt(item.offset?[0] ? item.offset)
+    boundsBottom = bounds.bottom + if offsetIsPercentage(item.offset) then getOffsetFromPercentage(bounds, item.offset) else parseInt(item.offset?[1] ? item.offset)
+    # Calculate parts in view.
+    if boundsTop < viewport.bottom and boundsBottom >= viewport.top
+      triggerInViewCallback(event, item, true, boundsBottom > viewport.bottom, boundsTop < viewport.top)
+    else
+      triggerInViewCallback(event, item, false)
 
 # ### Utility functions
 
 # Checks if the provided offset value is a percentage or not
 offsetIsPercentage = (offset) ->
-	typeof offset is 'string' and offset.slice(-1) is '%'
+  typeof offset is 'string' and offset.slice(-1) is '%'
 
 # Calculates the offset in pixels based on the percentage provided
 getOffsetFromPercentage = (bounds, offsetPercentage) ->
-	percentage = offsetPercentage.substring 0, offsetPercentage.length - 1
-	(bounds.bottom - bounds.top) *  (percentage / 100)
+  percentage = offsetPercentage.substring 0, offsetPercentage.length - 1
+  (bounds.bottom - bounds.top) *  (percentage / 100)
 
 # Returns the height of the window viewport
 getViewportHeight = ->
-	height = window.innerHeight
-	return height if height
-	mode = document.compatMode
-	if mode or not $?.support?.boxModel
-		height = if mode is 'CSS1Compat' then document.documentElement.clientHeight else document.body.clientHeight
-	height
+  height = window.innerHeight
+  return height if height
+  mode = document.compatMode
+  if mode or not $?.support?.boxModel
+    height = if mode is 'CSS1Compat' then document.documentElement.clientHeight else document.body.clientHeight
+  height
 
 # Polyfill for `getBoundingClientRect`
 getBoundingClientRect = (element) ->
-	return element.getBoundingClientRect() if element.getBoundingClientRect?
-	top = 0
-	el = element
-	while el
-		top += el.offsetTop
-		el = el.offsetParent
-	parent = element.parentElement
-	while parent
-		top -= parent.scrollTop if parent.scrollTop?
-		parent = parent.parentElement
-	return {
-		top: top
-		bottom: top + element.offsetHeight
-	}
+  return element.getBoundingClientRect() if element.getBoundingClientRect?
+  top = 0
+  el = element
+  while el
+    top += el.offsetTop
+    el = el.offsetParent
+  parent = element.parentElement
+  while parent
+    top -= parent.scrollTop if parent.scrollTop?
+    parent = parent.parentElement
+  return {
+    top: top
+    bottom: top + element.offsetHeight
+  }
 
 # Debounce a function.
 debounce = (f, t) ->
-	timer = null
-	(args...)->
-		clearTimeout timer if timer?
-		timer = setTimeout (-> f(args...)), (t ? 100)
+  timer = null
+  (args...)->
+    clearTimeout timer if timer?
+    timer = setTimeout (-> f(args...)), (t ? 100)
 
 # The main function to perform in-view checks on all items.
 windowCheckInView = (event) ->
-	i.customDebouncedCheck() for i in _windowInViewItems when i.customDebouncedCheck?
-	checkInView (i for i in _windowInViewItems when not i.customDebouncedCheck?), null, event
+  i.customDebouncedCheck() for i in _windowInViewItems when i.customDebouncedCheck?
+  checkInView (i for i in _windowInViewItems when not i.customDebouncedCheck?), null, event
 
 if typeof define is 'function' && define.amd
-	define(['angular'], angularInviewModule)
+  define(['angular'], angularInviewModule)
 else if typeof module isnt 'undefined' && module && module.exports
-	module.exports = angularInviewModule
+  module.exports = angularInviewModule
