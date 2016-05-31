@@ -47,34 +47,6 @@ angularInviewModule = angular.module('angular-inview', [])
             '$inview': $inview
             '$inviewpart': $inviewpart
 
-      if window.IntersectionObserver
-        opts = {}
-        if options?.offset
-          opts.rootMargin = "#{options.offset}px"
-        if containerController?.element
-          opts.root = containerController?.element[0]
-
-        inViewInterceptor = new IntersectionObserver(((entries) =>
-          for elem in entries
-            if elem.intersectionRatio > 0
-              if elem.intersectionRatio is 1
-                inviewpart = 'both'
-              else if elem.boundingClientRect.top > 0
-                inviewpart = 'top'
-              else
-                inviewpart = 'bottom'
-
-              item.callback(null, true, inviewpart)
-            else
-              item.callback(null, false, null)
-        ), opts)
-
-        inViewInterceptor.observe element[0]
-
-        scope.$on '$destroy', ->
-          inViewInterceptor.disconnect()
-        return
-
       # An additional `in-view-options` attribute can be specified to set offsets
       # that will displace the inView calculation and a debounce to slow down updates
       # via scrolling events.
